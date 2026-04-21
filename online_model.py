@@ -5,6 +5,7 @@ Online learning model with ADWIN drift detection.
 import numpy as np
 import pandas as pd
 from river import linear_model, drift, compose, preprocessing
+import config
 
 class OnlineLearner:
     def __init__(self, model_type="PARegressor"):
@@ -20,7 +21,6 @@ class OnlineLearner:
         if self.model_type == "PARegressor":
             return linear_model.PARegressor(C=1.0, mode=1, eps=0.1)
         else:
-            # Hoeffding Tree Regressor fallback
             from river import tree
             return tree.HoeffdingTreeRegressor(grace_period=200)
 
@@ -39,7 +39,6 @@ class OnlineLearner:
         self.drift_detector.update(error)
 
         if self.drift_detector.drift_detected:
-            # Reset model on drift
             self.model = self._build_model()
             self.last_drift_at = self.samples_seen
 
