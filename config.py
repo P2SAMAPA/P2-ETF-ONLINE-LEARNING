@@ -30,7 +30,7 @@ MACRO_COLS = ["VIX", "DXY", "T10Y2Y", "TBILL_3M"]
 
 # --- Online Learning Parameters ---
 MODEL_TYPE = "PARegressor"            # Passive‑Aggressive Regressor (River)
-WARMUP_WINDOW = 504                  # Initial warm‑up period (days)
+WARMUP_WINDOW = 252                  # Warm‑up: 1 year (was 504 → caused daily zeros)
 ADWIN_CLOCK = 32                     # Check for drift every 32 samples
 ADWIN_DELTA = 0.002                  # Significance level for ADWIN
 MIN_OBSERVATIONS = 100               # Minimum samples before forecasting
@@ -41,7 +41,7 @@ VOLATILITY_WINDOW = 21               # Window for rolling volatility
 BENCHMARK_LOOKBACK = 63              # Lookback for relative strength
 
 # --- Training Modes ---
-DAILY_LOOKBACK = 504                 # Days for daily trading
+DAILY_LOOKBACK = 504                 # Days for daily trading (252 warm‑up + 252 training)
 GLOBAL_TRAIN_START = "2008-01-01"    # Start date for global training
 SHRINKING_WINDOW_START_YEARS = list(range(2010, 2025))
 
