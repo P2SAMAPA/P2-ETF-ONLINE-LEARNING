@@ -47,32 +47,32 @@ def build_feature_dict(returns: pd.DataFrame, macro: pd.DataFrame, ticker: str,
                        benchmark_returns: pd.Series = None):
     """
     Build a dictionary of features for a single time step.
-    Includes: lagged returns, volatility, relative strength, macro.
+    All values are plain Python floats (no pandas Series).
     """
     ret_series = returns[ticker]
     features = {}
     for w in config.RETURN_WINDOWS:
         if len(ret_series) >= w:
-            features[f'ret_{w}d'] = ret_series.iloc[-w:].mean()
+            features[f'ret_{w}d'] = float(ret_series.iloc[-w:].mean())
         else:
             features[f'ret_{w}d'] = 0.0
 
     # 21‑day volatility
     if len(ret_series) >= config.VOLATILITY_WINDOW:
-        features['vol_21d'] = ret_series.iloc[-config.VOLATILITY_WINDOW:].std()
+        features['vol_21d'] = float(ret_series.iloc[-config.VOLATILITY_WINDOW:].std())
     else:
         features['vol_21d'] = 0.0
 
     # Relative strength vs benchmark
     if benchmark_returns is not None and len(benchmark_returns) >= config.BENCHMARK_LOOKBACK:
-        ticker_cum = (1 + ret_series.iloc[-config.BENCHMARK_LOOKBACK:]).prod()
-        bench_cum = (1 + benchmark_returns.iloc[-config.BENCHMARK_LOOKBACK:]).prod()
-        features['rel_strength'] = ticker_cum / bench_cum - 1.0
+        ticker_cum = float((1 + ret_series.iloc[-config.BENCHMARK_LOOKBACK:]).prod())
+        bench_cum = float((1 + benchmark_returns.iloc[-config.BENCHMARK_LOOKBACK:]).prod())
+        features['rel_strength'] = float(ticker_cum / bench_cum - 1.0)
     else:
         features['rel_strength'] = 0.0
 
     # Current macro values
     for col in macro.columns:
-        features[col] = macro[col].iloc[-1] if len(macro) > 0 else 0.0
+        features[col] = float(macro[col].iloc[-1]) if len(macro) > 0 else 0.0
 
     return features
