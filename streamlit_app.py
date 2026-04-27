@@ -1,11 +1,9 @@
 """
 Streamlit Dashboard for Online Learning Engine.
-Displays incremental forecasts and drift status.
 """
 
 import streamlit as st
 import pandas as pd
-import plotly.graph_objects as go
 from huggingface_hub import HfApi, hf_hub_download
 import json
 import config
@@ -20,7 +18,8 @@ st.markdown("""
     .hero-ticker { font-size: 4rem; font-weight: 800; }
     .forecast-positive { color: #28a745; font-weight: 600; }
     .forecast-negative { color: #dc3545; font-weight: 600; }
-    .drift-active { background: #ffc107; padding: 0.2rem 0.6rem; border-radius: 12px; color: black; }
+    .drift-active { background: #dc3545; color: white; padding: 0.2rem 0.6rem; border-radius: 12px; font-size: 0.9rem; }
+    .drift-none { background: #28a745; color: white; padding: 0.2rem 0.6rem; border-radius: 12px; font-size: 0.9rem; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -43,20 +42,79 @@ def load_latest_results():
         return None
 
 def forecast_badge(val):
+    try:
+        val = float(val)
+    except:
+        return 'N/A'
     if val >= 0:
         return f'<span class="forecast-positive">+{val*100:.3f}%</span>'
     return f'<span class="forecast-negative">{val*100:.3f}%</span>'
 
-def display_hero_card(ticker: str, forecast: float, drift_detected: bool):
-    drift_badge = '<span class="drift-active">⚠️ Drift Detected</span>' if drift_detected else ''
+def forecast_text(val):
+    try:
+        val = float(val)
+    except:
+        return 'N/A'
+    return f"{val*100:+.3f}%"
+
+def drift_badge(detected):
+    if detected:
+        return '<span class="drift-active">⚠️ Drift</span>'
+    return '<span class="drift-none">✓ Stable</span>'
+
+def render_mode_tab(mode_data, mode_name):
+    if not mode_data or 'top_picks' not in mode_data:
+        st.warning(f"No {mode_name} data.")
+        return
+    top = mode_data['top_picks']
+    if not top:
+        st.info(f"No predictions for {mode_name}.")
+        return
+    pick = top[0]
+    ticker = pick['ticker']
+    drift = pick.get('drift_detected', False)
+
     st.markdown(f"""
     <div class="hero-card">
-        <div style="font-size: 1.2rem; opacity: 0.8;">🔄 TOP PICK (Online Learning)</div>
+        <div style="font-size: 1.2rem; opacity: 0.8;">🔄 {mode_name} TOP PICK</div>
         <div class="hero-ticker">{ticker}</div>
-        <div style="font-size: 2rem;">Forecast: {forecast_badge(forecast)}</div>
-        <div style="margin-top: 1rem;">{drift_badge}</div>
+        <div style="font-size: 1.5rem;">Forecast: {forecast_badge(pick['forecast'])}</div>
+        <div style="margin-top: 0.5rem;">{drift_badge(drift)}</div>
     </div>
     """, unsafe_allow_html=True)
+
+    st.markdown("### Top 3 Picks")
+    rows = [{"Ticker": p['ticker'], "Forecast": forecast_text(p['forecast']),
+             "Drift": "⚠️" if p.get('drift_detected') else "—"} for p in top]
+    st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
+
+    all_forecasts = mode_data.get('all_forecasts', {})
+    if all_forecasts:
+        st.markdown("### All ETFs")
+        all_rows = [{"Ticker": t, "Forecast": forecast_text(f)} for t, f in all_forecasts.items()]
+        df_all = pd.DataFrame(all_rows).sort_values("Forecast", ascending=False)
+        st.dataframe(df_all, use_container_width=True, hide_index=True)
+
+def render_shrinking_tab(shrinking_data):
+    if not shrinking_data:
+        st.warning("No shrinking data.")
+        return
+    st.markdown(f"""
+    <div class="hero-card">
+        <div style="font-size: 1.2rem; opacity: 0.8;">🔄 SHRINKING CONSENSUS</div>
+        <div class="hero-ticker">{shrinking_data['ticker']}</div>
+        <div>{shrinking_data['conviction']:.0f}% conviction · {shrinking_data['num_windows']} windows</div>
+    </div>
+    """, unsafe_allow_html=True)
+    with st.expander("📋 All Windows"):
+        rows = []
+        for w in shrinking_data.get('windows', []):
+            rows.append({
+                "Window": f"{w['window_start']}-{w['window_end']}",
+                "ETF": w['ticker'],
+                "Forecast": forecast_text(w.get('forecast', 0))
+            })
+        st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
 
 # --- Sidebar ---
 st.sidebar.markdown("## ⚙️ Configuration")
@@ -65,43 +123,29 @@ st.sidebar.markdown(f"**📅 Next Trading Day:** {calendar.next_trading_day().st
 data = load_latest_results()
 if data:
     st.sidebar.markdown(f"**Run Date:** {data.get('run_date', 'Unknown')}")
-st.sidebar.divider()
-st.sidebar.markdown("### 🔄 Online Learning Parameters")
-st.sidebar.markdown(f"- Model: **{config.MODEL_TYPE}**")
-st.sidebar.markdown(f"- Warm‑up: **{config.WINDOW_SIZE}** days")
-st.sidebar.markdown(f"- Features: {config.FEATURE_WINDOWS}")
 
 st.markdown('<div class="main-header">🔄 P2Quant Online Learning</div>', unsafe_allow_html=True)
-st.markdown('<div>Passive‑Aggressive Regressor + ADWIN Drift Detection – Incremental ETF Forecasting</div>', unsafe_allow_html=True)
+st.markdown('<div>Passive‑Aggressive Regressor + ADWIN Drift Detection · Macro‑Informed Features</div>', unsafe_allow_html=True)
 
 if data is None:
     st.warning("No data available.")
     st.stop()
 
-daily = data['daily_trading']
-states = daily.get('model_states', {})
-
+universes_data = data.get('universes', {})
 tabs = st.tabs(["📊 Combined", "📈 Equity Sectors", "💰 FI/Commodities"])
-universe_keys = ["COMBINED", "EQUITY_SECTORS", "FI_COMMODITIES"]
+keys = ["COMBINED", "EQUITY_SECTORS", "FI_COMMODITIES"]
 
-for tab, key in zip(tabs, universe_keys):
+for tab, key in zip(tabs, keys):
+    uni = universes_data.get(key, {})
+    if not uni:
+        with tab:
+            st.info(f"No data for {key}.")
+        continue
     with tab:
-        top = daily['top_picks'].get(key, [])
-        universe_data = daily['universes'].get(key, {})
-        if top:
-            pick = top[0]
-            ticker = pick['ticker']
-            drift = states.get(key, {}).get(ticker, {}).get('drift_detected', False)
-            display_hero_card(ticker, pick['forecast'], drift)
-
-        st.markdown("### All ETFs (Ranked by Forecast)")
-        rows = []
-        for t, d in universe_data.items():
-            rows.append({
-                'Ticker': t,
-                'Forecast': f"{d['forecast']*100:.3f}%",
-                'Last Return': f"{d['last_return']*100:.3f}%",
-                'Drift': '⚠️' if states.get(key, {}).get(t, {}).get('drift_detected', False) else ''
-            })
-        df = pd.DataFrame(rows).sort_values('Forecast', ascending=False)
-        st.dataframe(df, use_container_width=True, hide_index=True)
+        d, g, s = st.tabs(["📅 Daily (504d)", "🌍 Global (2008‑YTD)", "🔄 Shrinking Consensus"])
+        with d:
+            render_mode_tab(uni.get('daily'), "Daily")
+        with g:
+            render_mode_tab(uni.get('global'), "Global")
+        with s:
+            render_shrinking_tab(uni.get('shrinking'))
