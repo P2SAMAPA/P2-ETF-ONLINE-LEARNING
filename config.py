@@ -25,17 +25,24 @@ UNIVERSES = {
     "COMBINED": ALL_TICKERS
 }
 
+# --- Macro Features (available from 2008) ---
+MACRO_COLS = ["VIX", "DXY", "T10Y2Y", "TBILL_3M"]
+
 # --- Online Learning Parameters ---
-MODEL_TYPE = "PARegressor"            # "PARegressor" or "HoeffdingTreeRegressor"
-WINDOW_SIZE = 504                     # Initial warm‑up period (days)
-ADWIN_CLOCK = 32                      # Check for drift every 32 samples
-ADWIN_DELTA = 0.002                   # Significance level for ADWIN
-MIN_OBSERVATIONS = 100                # Minimum samples before forecasting
+MODEL_TYPE = "PARegressor"            # Passive‑Aggressive Regressor (River)
+WARMUP_WINDOW = 504                  # Initial warm‑up period (days)
+ADWIN_CLOCK = 32                     # Check for drift every 32 samples
+ADWIN_DELTA = 0.002                  # Significance level for ADWIN
+MIN_OBSERVATIONS = 100               # Minimum samples before forecasting
 
-# --- Return Lookback for Features ---
-FEATURE_WINDOWS = [1, 5, 21]          # Lagged returns as features
+# --- Feature Windows ---
+RETURN_WINDOWS = [1, 5, 21, 63]      # Lagged returns as features
+VOLATILITY_WINDOW = 21               # Window for rolling volatility
+BENCHMARK_LOOKBACK = 63              # Lookback for relative strength
 
-# --- Shrinking Windows (historical backtest) ---
+# --- Training Modes ---
+DAILY_LOOKBACK = 504                 # Days for daily trading
+GLOBAL_TRAIN_START = "2008-01-01"    # Start date for global training
 SHRINKING_WINDOW_START_YEARS = list(range(2010, 2025))
 
 # --- Date Handling ---
