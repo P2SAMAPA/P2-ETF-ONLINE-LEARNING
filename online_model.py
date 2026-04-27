@@ -4,7 +4,7 @@ Online learning model with ADWIN drift detection.
 
 import numpy as np
 import pandas as pd
-from river import linear_model, drift, compose, preprocessing
+from river import linear_model, drift, preprocessing
 import config
 
 class OnlineLearner:
@@ -16,6 +16,7 @@ class OnlineLearner:
         self.is_warm = False
         self.samples_seen = 0
         self.last_drift_at = None
+        self.drift_history = []          # list of (sample_index, error)
 
     def _build_model(self):
         if self.model_type == "PARegressor":
@@ -29,7 +30,7 @@ class OnlineLearner:
         if not self.is_warm:
             self.scaler.learn_one(x)
             self.samples_seen += 1
-            if self.samples_seen >= config.WINDOW_SIZE:
+            if self.samples_seen >= config.WARMUP_WINDOW:
                 self.is_warm = True
             return
 
@@ -41,6 +42,7 @@ class OnlineLearner:
         if self.drift_detector.drift_detected:
             self.model = self._build_model()
             self.last_drift_at = self.samples_seen
+            self.drift_history.append((self.samples_seen, error))
 
         self.model.learn_one(x_scaled, y)
         self.samples_seen += 1
@@ -57,5 +59,6 @@ class OnlineLearner:
             "is_warm": self.is_warm,
             "last_drift_at": self.last_drift_at,
             "drift_detected": self.drift_detector.drift_detected,
+            "drift_history": self.drift_history,
             "window_width": self.drift_detector.width
         }
